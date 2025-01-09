@@ -35,16 +35,52 @@ void *memset(void *dest, int val, size_t len) {
   return dest;
 }
 
+int abs(const int x) { return x < 0 ? -x : x; }
+
+double fabs(const double x) { return x < 0 ? -x : x; }
+
+float expf(const float x) {
+  float result = 1.0;
+  float term = 1.0;
+
+  for (int i = 1; i <= 10; i++) {
+    term *= x / i;
+    result += term;
+  }
+
+  return result;
+}
+
+double pow(double base, double exponent) {
+  double result = 1;
+  if (exponent < 0) {
+    base = 1 / base;
+    exponent = -exponent;
+  }
+  for (int i = 0; i < exponent; i++) {
+    result *= base;
+  }
+  return result;
+}
+
+double sqrt(double x) {
+  double guess = x / 2.0;
+  double better_guess;
+
+  while (1) {
+    better_guess = guess - (guess * guess - x) / (2.0 * guess);
+    if (fabs(guess - better_guess) < 0.00001) {
+      return better_guess;
+    }
+    guess = better_guess;
+  }
+}
+
 extern void set_canvas_size(int width, int height);
 extern void clear_with_color(color_t color);
 extern void fill_rect(float x, float y, float w, float h, color_t color);
 extern void fill_circle(float x, float y, float radius, color_t color);
 extern void set_update_frame(func_ptr f);
-extern double exp(double x);
-extern double sqrt(double x);
-extern double pow(double x, double y);
-extern double fabs(double x);
-extern int abs(int x);
 
 const color_t BACKGROUND_COLOR = {0x18, 0x18, 0x18, 0xFF};
 
@@ -56,29 +92,34 @@ static double g_cx_max = CX_MAX_START;
 static double g_cy_min = CY_MIN_START;
 static double g_cy_max = CY_MAX_START;
 
-int get_board_index(const int x, const int y) { return y * BOARD_WIDTH + x; }
+static inline int get_board_index(const int x, const int y) {
+  return y * BOARD_WIDTH + x;
+}
 
-color_t get_color(const int iterations, const int max_iterations) {
-    color_t color;
-    if (iterations == max_iterations) {
-        color = (color_t){0, 0, 0, 0xFF};
-    } else {
-        double t = (double)iterations / max_iterations;
-        color.r = (uint8_t)(9 * (1 - t) * t * t * t * 255);
-        color.g = (uint8_t)(15 * (1 - t) * (1 - t) * t * t * 255);
-        color.b = (uint8_t)(8.5 * (1 - t) * (1 - t) * (1 - t) * t * 255);
-        color.a = 0xFF;
-    }
-    return color;
+static inline color_t get_color(const int iterations,
+                                const int max_iterations) {
+  color_t color;
+  if (iterations == max_iterations) {
+    color = (color_t){0, 0, 0, 0xFF};
+  } else {
+    double t = (double)iterations / max_iterations;
+    color.r = (uint8_t)(9 * (1 - t) * t * t * t * 255);
+    color.g = (uint8_t)(15 * (1 - t) * (1 - t) * t * t * 255);
+    color.b = (uint8_t)(8.5 * (1 - t) * (1 - t) * (1 - t) * t * 255);
+    color.a = 0xFF;
+  }
+  return color;
 }
 
 void compute_mandelbrot(void) {
+  const double inv_width = 1.0 / (BOARD_WIDTH - 1);
+  const double inv_height = 1.0 / (BOARD_HEIGHT - 1);
+
   for (int y = 0; y < BOARD_HEIGHT; ++y) {
+    const double cy = g_cy_min + (g_cy_max - g_cy_min) * y * inv_height;
+
     for (int x = 0; x < BOARD_WIDTH; ++x) {
-      const double cx =
-          g_cx_min + (g_cx_max - g_cx_min) * (double)x / (BOARD_WIDTH - 1);
-      const double cy =
-          g_cy_min + (g_cy_max - g_cy_min) * (double)y / (BOARD_HEIGHT - 1);
+      const double cx = g_cx_min + (g_cx_max - g_cx_min) * x * inv_width;
       double zx = 0, zy = 0, zx2 = 0, zy2 = 0;
 
       int i = 0;
@@ -213,7 +254,7 @@ void update_frame(const float delta) {
   const double center_y = region_y;
 
   zoom_time += 0.05f;
-  const double zoom_factor = exp(zoom_time);
+  const double zoom_factor = expf(zoom_time);
 
   const double initial_width = (CX_MAX_START - CX_MIN_START);
   const double initial_height = (CY_MAX_START - CY_MIN_START);
