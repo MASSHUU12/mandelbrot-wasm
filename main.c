@@ -1,7 +1,7 @@
-#define BOARD_HEIGHT 256
+#define BOARD_HEIGHT 384
 #define BOARD_WIDTH (BOARD_HEIGHT * 2)
 #define BOARD_AREA (BOARD_HEIGHT * BOARD_WIDTH)
-#define CELL_SIZE 5
+#define CELL_SIZE 2
 #define SCREEN_WIDTH (BOARD_WIDTH * CELL_SIZE)
 #define SCREEN_HEIGHT (BOARD_HEIGHT * CELL_SIZE)
 #define TICK .03
@@ -58,6 +58,20 @@ static double g_cy_max = CY_MAX_START;
 
 int get_board_index(const int x, const int y) { return y * BOARD_WIDTH + x; }
 
+color_t get_color(const int iterations, const int max_iterations) {
+    color_t color;
+    if (iterations == max_iterations) {
+        color = (color_t){0, 0, 0, 0xFF};
+    } else {
+        double t = (double)iterations / max_iterations;
+        color.r = (uint8_t)(9 * (1 - t) * t * t * t * 255);
+        color.g = (uint8_t)(15 * (1 - t) * (1 - t) * t * t * 255);
+        color.b = (uint8_t)(8.5 * (1 - t) * (1 - t) * (1 - t) * t * 255);
+        color.a = 0xFF;
+    }
+    return color;
+}
+
 void compute_mandelbrot(void) {
   for (int y = 0; y < BOARD_HEIGHT; ++y) {
     for (int x = 0; x < BOARD_WIDTH; ++x) {
@@ -77,12 +91,7 @@ void compute_mandelbrot(void) {
       }
 
       int index = get_board_index(x, y);
-      if (i == ITERATION_MAX_START) {
-        board[index] = (color_t){0, 0, 0, 0xFF};
-      } else {
-        uint8_t colorVal = (uint8_t)((255.0 * i) / ITERATION_MAX_START);
-        board[index] = (color_t){colorVal, colorVal, colorVal, 0xFF};
-      }
+      board[index] = get_color(i, g_iteration_max);
     }
   }
 }
