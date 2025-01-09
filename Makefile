@@ -2,7 +2,7 @@
 
 CC = clang
 OUTPUT_FILE = ./web/main.wasm
-CFLAGS = --target=wasm32 -Oz -s -flto -nostdlib -fno-builtin-memset -Wall -Wextra
+CFLAGS = --target=wasm32 -O3 -s -flto -nostdlib -fno-builtin-memset -Wall -Wextra
 LDFLAGS = -Wl,--no-entry -Wl,--export-all -Wl,--lto-O3 -Wl,-z,stack-size=8388608 -Wl,--allow-undefined
 
 all: build
