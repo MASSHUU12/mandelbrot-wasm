@@ -6,7 +6,6 @@
 #define SCREEN_HEIGHT (BOARD_HEIGHT * CELL_SIZE)
 #define TICK .03
 
-// Initial bounds
 #define CX_MIN_START -2.5
 #define CX_MAX_START 1.5
 #define CY_MIN_START -2.0
@@ -25,9 +24,9 @@ typedef struct {
   uint8_t g;
   uint8_t b;
   uint8_t a;
-} color_t;
+} __attribute__((aligned(16))) color_t;
 
-int color_is_different(color_t *a, color_t *b) {
+static inline int color_is_different(color_t *a, color_t *b) {
   return a->r != b->r || a->g != b->g || a->b != b->b || a->a != b->a;
 }
 
@@ -82,10 +81,8 @@ extern void fill_rect(float x, float y, float w, float h, color_t color);
 extern void fill_circle(float x, float y, float radius, color_t color);
 extern void set_update_frame(func_ptr f);
 
-const color_t BACKGROUND_COLOR = {0x18, 0x18, 0x18, 0xFF};
-
-color_t previous_board[BOARD_AREA];
-color_t board[BOARD_AREA];
+static color_t previous_board[BOARD_AREA] __attribute__((aligned(16)));
+static color_t board[BOARD_AREA] __attribute__((aligned(16)));
 
 static int g_iteration_max = ITERATION_MAX_START;
 static float g_cx_min = CX_MIN_START;
@@ -93,14 +90,8 @@ static float g_cx_max = CX_MAX_START;
 static float g_cy_min = CY_MIN_START;
 static float g_cy_max = CY_MAX_START;
 
-const float inv_width = 1.0 / (BOARD_WIDTH - 1);
-const float inv_height = 1.0 / (BOARD_HEIGHT - 1);
-
-void initialize_previous_board() {
-  for (int i = 0; i < BOARD_AREA; ++i) {
-    previous_board[i] = BACKGROUND_COLOR;
-  }
-}
+static const float inv_width = 1.0 / (BOARD_WIDTH - 1);
+static const float inv_height = 1.0 / (BOARD_HEIGHT - 1);
 
 static inline int get_board_index(const int x, const int y) {
   return y * BOARD_WIDTH + x;
@@ -121,7 +112,7 @@ static inline color_t get_color(const int iterations,
   return color;
 }
 
-void compute_mandelbrot(void) {
+static void compute_mandelbrot(void) {
   for (int y = 0; y < BOARD_HEIGHT; ++y) {
     const double cy = g_cy_min + (g_cy_max - g_cy_min) * y * inv_height;
 
@@ -136,18 +127,13 @@ void compute_mandelbrot(void) {
         zx2 = zx * zx;
         zy2 = zy * zy;
         i++;
+
+        if (zx2 + zy2 > ER2 * 10) {
+          break;
+        }
       }
 
       board[get_board_index(x, y)] = get_color(i, g_iteration_max);
-    }
-  }
-}
-
-void draw_board(void) {
-  for (int x = 0; x < BOARD_WIDTH; ++x) {
-    for (int y = 0; y < BOARD_HEIGHT; ++y) {
-      fill_rect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE,
-                board[get_board_index(x, y)]);
     }
   }
 }
@@ -157,7 +143,7 @@ void draw_board(void) {
  * high-interest point, but then limits how far the center is adjusted to avoid
  * large jumps.
  */
-void pick_new_center(float *current_center_x, float *current_center_y,
+static void pick_new_center(float *current_center_x, float *current_center_y,
   float *min_x, float *max_x, float *min_y,
   float *max_y) {
   int best_x = 0, best_y = 0;
@@ -238,7 +224,7 @@ void pick_new_center(float *current_center_x, float *current_center_y,
   *max_y = *current_center_y + half_height;
 }
 
-void draw_changed_pixels(void) {
+static void draw_changed_pixels(void) {
   for (int x = 0; x < BOARD_WIDTH; ++x) {
     for (int y = 0; y < BOARD_HEIGHT; ++y) {
       int i = get_board_index(x, y);
@@ -250,7 +236,7 @@ void draw_changed_pixels(void) {
   }
 }
 
-void update_frame(const float delta) {
+static void update_frame(const float delta) {
   static float time_acc = 0;
   static float zoom_time = .0;
 
