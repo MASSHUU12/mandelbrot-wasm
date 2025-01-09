@@ -12,7 +12,7 @@
 #define CY_MIN_START -2.0
 #define CY_MAX_START 2.0
 
-#define ITERATION_MAX 200
+#define ITERATION_MAX_START 200
 #define ESCAPE_RADIUS 2
 #define ER2 (ESCAPE_RADIUS * ESCAPE_RADIUS)
 
@@ -40,13 +40,17 @@ extern void clear_with_color(color_t color);
 extern void fill_rect(float x, float y, float w, float h, color_t color);
 extern void fill_circle(float x, float y, float radius, color_t color);
 extern void set_update_frame(func_ptr f);
-extern double sin(double x);
+extern double exp(double x);
+extern double sqrt(double x);
+extern double pow(double x, double y);
+extern double fabs(double x);
+extern int abs(int x);
 
 const color_t BACKGROUND_COLOR = {0x18, 0x18, 0x18, 0xFF};
 
 color_t board[BOARD_AREA];
 
-// These variables will change with time to animate the fractal
+static int g_iteration_max = ITERATION_MAX_START;
 static double g_cx_min = CX_MIN_START;
 static double g_cx_max = CX_MAX_START;
 static double g_cy_min = CY_MIN_START;
@@ -64,7 +68,7 @@ void compute_mandelbrot(void) {
       double zx = 0, zy = 0, zx2 = 0, zy2 = 0;
 
       int i = 0;
-      while (i < ITERATION_MAX && (zx2 + zy2) < ER2) {
+      while (i < g_iteration_max && (zx2 + zy2) < ER2) {
         zy = 2 * zx * zy + cy;
         zx = zx2 - zy2 + cx;
         zx2 = zx * zx;
@@ -73,21 +77,12 @@ void compute_mandelbrot(void) {
       }
 
       int index = get_board_index(x, y);
-      if (i == ITERATION_MAX) {
-        board[index] = BACKGROUND_COLOR;
+      if (i == ITERATION_MAX_START) {
+        board[index] = (color_t){0, 0, 0, 0xFF};
       } else {
-        // uint8_t colorVal = (uint8_t)((255.0 * i) / ITERATION_MAX);
-        // board[index] = (color_t){colorVal, colorVal, colorVal, 0xFF};
-        board[index] = (color_t){0xFF, 0xFF, 0xFF, 0xFF};
+        uint8_t colorVal = (uint8_t)((255.0 * i) / ITERATION_MAX_START);
+        board[index] = (color_t){colorVal, colorVal, colorVal, 0xFF};
       }
-    }
-  }
-}
-
-void populate_board(void) {
-  for (int x = 0; x < BOARD_WIDTH; ++x) {
-    for (int y = 0; y < BOARD_HEIGHT; ++y) {
-      board[get_board_index(x, y)] = BACKGROUND_COLOR;
     }
   }
 }
@@ -101,37 +96,132 @@ void draw_board(void) {
   }
 }
 
-void update_frame(float delta) {
-  static float time = 0;
-  time += delta;
+/**
+ * This function scans the existing Mandelbrot data to find a relatively
+ * high-interest point, but then limits how far the center is adjusted to avoid
+ * large jumps.
+ */
+void pick_new_center(double *current_center_x, double *current_center_y,
+                     double *min_x, double *max_x, double *min_y,
+                     double *max_y) {
+  int best_x = 0;
+  int best_y = 0;
+  double best_score = 0;
 
-  if (time < TICK) {
-    return;
+  for (int y = 1; y < BOARD_HEIGHT - 1; ++y) {
+    for (int x = 1; x < BOARD_WIDTH - 1; ++x) {
+      const color_t current = board[get_board_index(x, y)];
+      const color_t left = board[get_board_index(x - 1, y)];
+      const color_t right = board[get_board_index(x + 1, y)];
+      const color_t up = board[get_board_index(x, y - 1)];
+      const color_t down = board[get_board_index(x, y + 1)];
+
+      const int dx = abs(right.r - left.r);
+      const int dy = abs(up.r - down.r);
+      const double gradient = sqrt(dx * dx + dy * dy);
+
+      // Calculate iteration level (normalized)
+      const double iteration_level = current.r / 255.0;
+
+      // Prefer points that:
+      // 1. Have high gradient (interesting boundaries)
+      // 2. Have medium iteration count (not too deep in set, not too far out)
+      // 3. Are closer to the current center (for smoother movement)
+      const double center_dist = sqrt(pow((x - BOARD_WIDTH / 2.f), 2) +
+                                      pow((y - BOARD_HEIGHT / 2.f), 2));
+      const double center_weight = 1.0 - (center_dist / (BOARD_WIDTH / 2.f));
+
+      const double score =
+          gradient * (1.0 - fabs(iteration_level - 0.5)) * center_weight;
+
+      if (score > best_score) {
+        best_score = score;
+        best_x = x;
+        best_y = y;
+      }
+    }
   }
 
-  time = 0;
+  // Convert the selected pixel coordinate to Mandelbrot space
+  const double picked_cx =
+      *min_x + (*max_x - *min_x) * ((double)best_x / (BOARD_WIDTH - 1));
+  const double picked_cy =
+      *min_y + (*max_y - *min_y) * ((double)best_y / (BOARD_HEIGHT - 1));
+
+  // Adjust movement speed based on zoom level
+  const double zoom_scale = (*max_x - *min_x) / (CX_MAX_START - CX_MIN_START);
+  const double SHIFT_LIMIT = 0.05 * zoom_scale;
+
+  double dx = picked_cx - *current_center_x;
+  double dy = picked_cy - *current_center_y;
+
+  // Apply smooth movement limits
+  dx = dx * 0.2; // Smooth factor
+  dy = dy * 0.2;
+
+  if (dx > SHIFT_LIMIT)
+    dx = SHIFT_LIMIT;
+  if (dx < -SHIFT_LIMIT)
+    dx = -SHIFT_LIMIT;
+  if (dy > SHIFT_LIMIT)
+    dy = SHIFT_LIMIT;
+  if (dy < -SHIFT_LIMIT)
+    dy = -SHIFT_LIMIT;
+
+  *current_center_x += dx;
+  *current_center_y += dy;
+
+  // Recompute fractal bounding box around the new center
+  const double width = (*max_x - *min_x);
+  const double height = (*max_y - *min_y);
+  const double half_width = width * 0.5;
+  const double half_height = height * 0.5;
+
+  *min_x = *current_center_x - half_width;
+  *max_x = *current_center_x + half_width;
+  *min_y = *current_center_y - half_height;
+  *max_y = *current_center_y + half_height;
+}
+
+void update_frame(const float delta) {
+  static float time_acc = 0;
+  static float zoom_time = .0;
+
+  time_acc += delta;
+  if (time_acc < TICK) {
+    return;
+  }
+  time_acc = 0;
+
   clear_with_color(BACKGROUND_COLOR);
+  compute_mandelbrot();
 
-  static float zoom_time = 0;
-  zoom_time += 0.1f;
+  static double region_x = 0, region_y = 0;
+  pick_new_center(&region_x, &region_y, &g_cx_min, &g_cx_max, &g_cy_min,
+                  &g_cy_max);
 
-  double zoom_factor = 1.0 + 0.5 * sin(zoom_time);
-  double center_x = -.5;
-  double center_y = 0;
-  double half_width = (CX_MAX_START - CX_MIN_START) * .5 * zoom_factor;
-  double half_height = (CY_MAX_START - CY_MIN_START) * .5 * zoom_factor;
+  const double center_x = region_x;
+  const double center_y = region_y;
+
+  zoom_time += 0.05f;
+  const double zoom_factor = exp(zoom_time);
+
+  const double initial_width = (CX_MAX_START - CX_MIN_START);
+  const double initial_height = (CY_MAX_START - CY_MIN_START);
+  const double half_width = initial_width / (2.0 * zoom_factor);
+  const double half_height = initial_height / (2.0 * zoom_factor);
 
   g_cx_min = center_x - half_width;
   g_cx_max = center_x + half_width;
   g_cy_min = center_y - half_height;
   g_cy_max = center_y + half_height;
 
-  compute_mandelbrot();
+  g_iteration_max = ITERATION_MAX_START + (int)(zoom_time * 10);
+
   draw_board();
 }
 
 void run(void) {
   set_canvas_size(SCREEN_WIDTH, SCREEN_HEIGHT);
-  populate_board();
   set_update_frame(update_frame);
 }
