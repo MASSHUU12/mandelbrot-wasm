@@ -46,6 +46,9 @@ async function init() {
         set_update_frame: function (fIndex) {
           updateFrameIndex = fIndex;
         },
+        sin: function (x) {
+          return Math.sin(x);
+        },
       },
     },
   );
