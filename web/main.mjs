@@ -1,74 +1,9 @@
-const ctx = document.getElementById("game").getContext("2d");
+const worker = new Worker(new URL("worker.mjs", import.meta.url));
+const canvas = document.getElementById("game");
+const offscreen = canvas.transferControlToOffscreen();
 
-function parseColor(color) {
-  const r = ((color >> (8 * 0)) & 0xff).toString(16).padStart(2, 0);
-  const g = ((color >> (8 * 1)) & 0xff).toString(16).padStart(2, 0);
-  const b = ((color >> (8 * 2)) & 0xff).toString(16).padStart(2, 0);
-  const a = ((color >> (8 * 3)) & 0xff).toString(16).padStart(2, 0);
+worker.onmessage = (event) => {
+  console.log(`Worker said : ${event.data}`);
+};
 
-  return "#" + r + g + b + a;
-}
-
-let updateFrameIndex = null;
-
-async function init() {
-  const { instance } = await WebAssembly.instantiateStreaming(
-    fetch("./main.wasm"),
-    {
-      env: {
-        set_canvas_size: function (w, h) {
-          ctx.canvas.width = w;
-          ctx.canvas.height = h;
-        },
-        clear_with_color: function (color) {
-          const memory = instance.exports.memory;
-          const colorValue = new Uint32Array(memory.buffer, color, 1)[0];
-
-          ctx.fillStyle = parseColor(colorValue);
-          ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-        },
-        fill_rect: function (x, y, w, h, color) {
-          const memory = instance.exports.memory;
-          const colorValue = new Uint32Array(memory.buffer, color, 1)[0];
-
-          ctx.fillStyle = parseColor(colorValue);
-          ctx.fillRect(x, y, w, h);
-        },
-        fill_circle: function (x, y, radius, color) {
-          const memory = instance.exports.memory;
-          const colorValue = new Uint32Array(memory.buffer, color, 1)[0];
-
-          ctx.fillStyle = parseColor(colorValue);
-          ctx.beginPath();
-          ctx.arc(x, y, radius, 0, 2 * Math.PI);
-          ctx.fill();
-        },
-        set_update_frame: function (fIndex) {
-          updateFrameIndex = fIndex;
-        },
-      },
-    },
-  );
-
-  instance.exports.run();
-
-  const table =
-    instance.exports.__indirect_function_table || instance.exports.table;
-  const updateFrame = table.get(updateFrameIndex);
-
-  let previousTimestamp;
-  function gameLoop(timestamp) {
-    const deltaTime = (timestamp - previousTimestamp) * 0.001;
-    previousTimestamp = timestamp;
-
-    updateFrame(deltaTime);
-    window.requestAnimationFrame(gameLoop);
-  }
-
-  window.requestAnimationFrame((timestamp) => {
-    previousTimestamp = timestamp;
-    window.requestAnimationFrame(gameLoop);
-  });
-}
-
-init();
+worker.postMessage({ canvas: offscreen }, [offscreen]);
