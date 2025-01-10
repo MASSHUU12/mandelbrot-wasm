@@ -4,7 +4,7 @@
 #define CELL_SIZE 5
 #define SCREEN_WIDTH (BOARD_WIDTH * CELL_SIZE)
 #define SCREEN_HEIGHT (BOARD_HEIGHT * CELL_SIZE)
-#define TICK .03
+#define TICK 1.0/30.0
 
 #define CX_MIN_START -2.5
 #define CX_MAX_START 1.5
