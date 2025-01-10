@@ -1,4 +1,4 @@
-# Conway's Game of Life WebAssembly in C
+# Mandelbrot Set WebAssembly in C
 
 ```sh
 > make
