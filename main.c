@@ -40,7 +40,7 @@ void *memset(void *dest, int val, size_t len) {
 }
 
 static inline int abs(const int x) { return x < 0 ? -x : x; }
-static inline double fabs(const double x) { return x < 0 ? -x : x; }
+static inline float fabs(const float x) { return x < 0 ? -x : x; }
 
 static inline float expf(const float x) {
   float result = 1.0;
@@ -54,10 +54,10 @@ static inline float expf(const float x) {
   return result;
 }
 
-static inline double pow(double base, double exponent) {
-  double result = 1.0;
+static inline float pow(float base, float exponent) {
+  float result = 1.0;
   int exp = exponent < 0 ? -exponent : exponent;
-  double b = exponent < 0 ? 1.0 / base : base;
+  float b = exponent < 0 ? 1.0 / base : base;
   while (exp) {
     if (exp & 1)
       result *= b;
@@ -67,8 +67,8 @@ static inline double pow(double base, double exponent) {
   return result;
 }
 
-static inline double sqrt(double x) {
-  double guess = x * 0.5;
+static inline float sqrt(float x) {
+  float guess = x * 0.5;
   for (int i = 0; i < 20; i++) {
     guess = guess - (guess * guess - x) / (2.0 * guess);
   }
@@ -103,7 +103,7 @@ static inline color_t get_color(const int iterations,
   if (iterations == max_iterations) {
     color = (color_t){0, 0, 0, 0xFF};
   } else {
-    double t = (double)iterations / max_iterations;
+    float t = (float)iterations / max_iterations;
     color.r = (uint8_t)(9 * (1 - t) * t * t * t * 255);
     color.g = (uint8_t)(15 * (1 - t) * (1 - t) * t * t * 255);
     color.b = (uint8_t)(8.5 * (1 - t) * (1 - t) * (1 - t) * t * 255);
@@ -113,12 +113,15 @@ static inline color_t get_color(const int iterations,
 }
 
 static void compute_mandelbrot(void) {
+  const float dx_step = (g_cx_max - g_cx_min) * inv_width;
+  const float dy_step = (g_cy_max - g_cy_min) * inv_height;
+
   for (int y = 0; y < BOARD_HEIGHT; ++y) {
-    const double cy = g_cy_min + (g_cy_max - g_cy_min) * y * inv_height;
+    const float cy = g_cy_min + y * dy_step;
 
     for (int x = 0; x < BOARD_WIDTH; ++x) {
-      const double cx = g_cx_min + (g_cx_max - g_cx_min) * x * inv_width;
-      double zx = 0, zy = 0, zx2 = 0, zy2 = 0;
+      const float cx = g_cx_min + x * dx_step;
+      float zx = 0, zy = 0, zx2 = 0, zy2 = 0;
 
       int i = 0;
       while (i < g_iteration_max && (zx2 + zy2) < ER2) {
@@ -144,8 +147,8 @@ static void compute_mandelbrot(void) {
  * large jumps.
  */
 static void pick_new_center(float *current_center_x, float *current_center_y,
-  float *min_x, float *max_x, float *min_y,
-  float *max_y) {
+                            float *min_x, float *max_x, float *min_y,
+                            float *max_y) {
   int best_x = 0, best_y = 0;
   float best_score = 0;
 
@@ -169,7 +172,7 @@ static void pick_new_center(float *current_center_x, float *current_center_y,
       // 2. Have medium iteration count (not too deep in set, not too far out)
       // 3. Are closer to the current center (for smoother movement)
       const float center_dist = sqrt(pow((x - BOARD_WIDTH / 2.f), 2) +
-                                      pow((y - BOARD_HEIGHT / 2.f), 2));
+                                     pow((y - BOARD_HEIGHT / 2.f), 2));
       const float center_weight = 1.0 - (center_dist / (BOARD_WIDTH / 2.f));
 
       const float score =
@@ -186,7 +189,7 @@ static void pick_new_center(float *current_center_x, float *current_center_y,
   // Convert the selected pixel coordinate to Mandelbrot space
   const float picked_cx =
       *min_x + (*max_x - *min_x) * ((float)best_x / (BOARD_WIDTH - 1));
-      const float picked_cy =
+  const float picked_cy =
       *min_y + (*max_y - *min_y) * ((float)best_y / (BOARD_HEIGHT - 1));
 
   // Adjust movement speed based on zoom level
@@ -197,8 +200,8 @@ static void pick_new_center(float *current_center_x, float *current_center_y,
   float dy = picked_cy - *current_center_y;
 
   // Apply smooth movement limits
-  dx = dx * 0.2; // Smooth factor
-  dy = dy * 0.2;
+  dx *= 0.2; // Smooth factor
+  dy *= 0.2;
 
   if (dx > SHIFT_LIMIT)
     dx = SHIFT_LIMIT;
