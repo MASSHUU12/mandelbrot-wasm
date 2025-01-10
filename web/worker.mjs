@@ -7,6 +7,10 @@ function parseColor(color) {
   return "#" + r + g + b + a;
 }
 
+function getColorValue(instance, color) {
+  return new Uint32Array(instance.exports.memory.buffer, color, 1)[0];
+}
+
 let updateFrameIndex = null;
 
 onmessage = async (event) => {
@@ -21,25 +25,16 @@ onmessage = async (event) => {
           ctx.canvas.width = w;
           ctx.canvas.height = h;
         },
-        clear_with_color: function (color) {
-          const memory = instance.exports.memory;
-          const colorValue = new Uint32Array(memory.buffer, color, 1)[0];
-
-          ctx.fillStyle = parseColor(colorValue);
+        clear_with_color: function (colorPtr) {
+          ctx.fillStyle = parseColor(getColorValue(instance, colorPtr));
           ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         },
-        fill_rect: function (x, y, w, h, color) {
-          const memory = instance.exports.memory;
-          const colorValue = new Uint32Array(memory.buffer, color, 1)[0];
-
-          ctx.fillStyle = parseColor(colorValue);
+        fill_rect: function (x, y, w, h, colorPtr) {
+          ctx.fillStyle = parseColor(getColorValue(instance, colorPtr));
           ctx.fillRect(x, y, w, h);
         },
-        fill_circle: function (x, y, radius, color) {
-          const memory = instance.exports.memory;
-          const colorValue = new Uint32Array(memory.buffer, color, 1)[0];
-
-          ctx.fillStyle = parseColor(colorValue);
+        fill_circle: function (x, y, radius, colorPtr) {
+          ctx.fillStyle = parseColor(getColorValue(instance, colorPtr));
           ctx.beginPath();
           ctx.arc(x, y, radius, 0, 2 * Math.PI);
           ctx.fill();
@@ -57,7 +52,6 @@ onmessage = async (event) => {
     instance.exports.__indirect_function_table || instance.exports.table;
   const updateFrame = table.get(updateFrameIndex);
 
-  let previousTimestamp;
   function gameLoop(timestamp) {
     const deltaTime = (timestamp - previousTimestamp) * 0.001;
     previousTimestamp = timestamp;
@@ -68,6 +62,6 @@ onmessage = async (event) => {
 
   self.requestAnimationFrame((timestamp) => {
     previousTimestamp = timestamp;
-    self.requestAnimationFrame(gameLoop);
+    gameLoop(timestamp);
   });
 };
